@@ -14,9 +14,10 @@ const (
 var (
 	labelsMap = map[string]prometheus.Labels{}
 
-	labelsDeviceGateway = []string{"gatewayId", "deviceName", "deviceEui"}
-	labelsDevice        = []string{"deviceName", "deviceEui"}
-	labelsDeviceMetric  = []string{"deviceName", "deviceEui", "type"}
+	labelsDeviceGateway  = []string{"gatewayId", "deviceName", "deviceEui"}
+	labelsDevice         = []string{"deviceName", "deviceEui"}
+	labelsDeviceMsgLevel = []string{"deviceName", "deviceEui", "level", "code"}
+	labelsDeviceMetric   = []string{"deviceName", "deviceEui", "type"}
 
 	webhookConnectionTotal = promauto.NewCounter(prometheus.CounterOpts{
 		Name: metricsPrefix + "_webhook_total",
@@ -58,6 +59,11 @@ var (
 		Name: metricsPrefix + "_devices_confirmed_count",
 		Help: "confirmed count",
 	}, labelsDevice,
+	)
+	deviceMsgLevelCount = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: metricsPrefix + "_devices_msg_level_count",
+		Help: "device msg level/type count",
+	}, labelsDeviceMsgLevel,
 	)
 	deviceBattery = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: metricsPrefix + "_devices_battery_percent",

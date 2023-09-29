@@ -16,17 +16,22 @@ import (
 )
 
 func startHttpServer() {
-	http.Handle("/metrics", promhttp.Handler())
-	http.HandleFunc("/", webhookHandler)
-	http.HandleFunc("/hook", webhookHandler)
-	http.HandleFunc("/dump", dumpHandler)
-
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.Handler())
+	mux.HandleFunc("/", webhookHandler)
+	mux.HandleFunc("/hook", webhookHandler)
+	mux.HandleFunc("/dump", dumpHandler)
+	httpServer := &http.Server{
+		Addr:    config.Listen,
+		Handler: mux,
+	}
+	httpServer.SetKeepAlivesEnabled(false)
 	//http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 	//	http.Redirect(w, r, "/metrics", http.StatusMovedPermanently)
 	//})
 	log.Info().Msgf("Listening on port %s for http requests", config.Listen)
 	go func() {
-		if err := http.ListenAndServe(config.Listen, nil); err != nil {
+		if err := httpServer.ListenAndServe(); err != nil {
 			if err != http.ErrServerClosed {
 				log.Fatal().Err(err).Msg("Failed to start http server")
 			}
@@ -35,34 +40,39 @@ func startHttpServer() {
 }
 
 func webhookHandler(w http.ResponseWriter, r *http.Request) {
-	webhookConnectionTotal.Inc()
 	ua := filterAscii(r.Header.Get("User-Agent"))
 	auth := filterAscii(r.Header.Get("Authorization"))
 	ip := ReadUserIP(r)
-
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		log.Error().Err(err).Str("IP", ip).Str("User-Agent", ua).Str("Authorization", auth).Msg("Failed to read request body")
-		webhookConnectionErrorTotal.Inc()
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	filename := ""
-	if config.Debug {
-		filename = dumpFile(body)
-	}
-	devEui, err2 := parseChirpstackWebhook(body)
-	if err2 != nil {
-		webhookConnectionErrorTotal.Inc()
-		if !config.Debug { // We already dumped it since its in debug mode
+	switch r.Method {
+	case "POST":
+		webhookConnectionTotal.Inc()
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			log.Error().Err(err).Str("IP", ip).Str("User-Agent", ua).Str("Authorization", auth).Msg("Failed to read request body")
+			webhookConnectionErrorTotal.Inc()
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		filename := ""
+		devEui, needDump, err2 := parseChirpstackWebhook(body)
+		if config.Debug || needDump {
 			filename = dumpFile(body)
 		}
-		log.Error().Err(err2).Str("dump", filename).Str("IP", ip).Str("User-Agent", ua).Str("Authorization", auth).Msg("Failed to parse request body")
-		http.Error(w, err2.Error(), http.StatusBadRequest)
-		return
+		if err2 != nil {
+			webhookConnectionErrorTotal.Inc()
+			if filename == "" { // We already dumped it since its in debug mode
+				filename = dumpFile(body)
+			}
+			log.Error().Err(err2).Str("dump", filename).Str("IP", ip).Str("User-Agent", ua).Str("Authorization", auth).Msg("Failed to parse request body")
+			http.Error(w, err2.Error(), http.StatusBadRequest)
+			return
+		}
+		fmt.Fprintf(w, `ok`)
+		log.Info().Str("devEui", devEui).Str("dump", filename).Str("method", r.Method).Str("IP", ip).Str("User-Agent", ua).Str("Authorization", auth).Msg("Got webhook request")
+	default:
+		log.Info().Str("method", r.Method).Str("IP", ip).Str("User-Agent", ua).Str("Authorization", auth).Msg("Got lost soul")
+		http.Redirect(w, r, "/metrics", http.StatusMovedPermanently)
 	}
-	log.Info().Str("devEui", devEui).Str("dump", filename).Str("IP", ip).Str("User-Agent", ua).Str("Authorization", auth).Msg("Got webhook request")
-	fmt.Fprintf(w, "Hello webhook!\n")
 }
 
 func dumpHandler(w http.ResponseWriter, r *http.Request) {

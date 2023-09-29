@@ -16,8 +16,8 @@ build:
 	CGO_ENABLED=0 go build ${VERSION_FLAGS} -o ./lora_exporter ./cmd/lora_exporter
 
 build-docker:
-	docker build -t visago/loraexporter:$(DAY) .
-	docker push visago/loraexporter:$(DAY)
+	docker buildx build --push -t visago/lora_exporter:$(DAY) .
+	docker buildx build --push -t visago/lora_exporter:latest .
 
 run: lint
 	DEBUG=1 LISTEN=0.0.0.0:5673 go run ${VERSION_FLAGS} ./cmd/lora_exporter

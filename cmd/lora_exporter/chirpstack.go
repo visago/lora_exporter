@@ -31,6 +31,9 @@ type WebHookDoc struct {
 		Tags               struct {
 		} `json:"tags"`
 	} `json:"deviceInfo"`
+	Level                   string  `json:"level"`
+	Code                    string  `json:"code"`
+	Description             string  `json:"description"`
 	DevAddr                 string  `json:"devAddr"`
 	Adr                     bool    `json:"adr"`
 	Dr                      int     `json:"dr"`
@@ -77,6 +80,9 @@ type WebHookDoc struct {
 			} `json:"lora"`
 		} `json:"modulation"`
 	} `json:"txInfo"`
+	Context struct {
+		DeduplicationID string `json:"deduplication_id"`
+	} `json:"context"`
 }
 
 type RxInfoDoc struct {
@@ -176,16 +182,16 @@ var senseCapMeasurementIdTypeMap = map[float64]string{
 	4101: "barometricPressure",
 }
 
-func parseChirpstackWebhook(body []byte) (string, error) {
+func parseChirpstackWebhook(body []byte) (string, bool, error) {
 	var payload WebHookDoc
+	// set needDump to true if we need a dump, we do this so we don't dump twice
+	needDump := false
 	if err := json.Unmarshal(body, &payload); err != nil {
-		return "", err
+		return "", true, err
 	}
 	devEui := payload.DeviceInfo.DevEui
 	OUI := getOui(devEui)
-	if len(payload.RxInfo) == 0 {
-		log.Error().Str("devEui", devEui).Msg("RxInfo is empty!")
-	} else {
+	if len(payload.RxInfo) > 0 {
 		for _, rxinfo := range payload.RxInfo {
 			deviceGatewayLabel := prometheus.Labels{"gatewayId": rxinfo.GatewayID, "deviceName": payload.DeviceInfo.DeviceName, "deviceEui": payload.DeviceInfo.DevEui}
 			deviceLastseen.With(deviceGatewayLabel).Set(float64(payload.Time.Unix()))
@@ -198,7 +204,7 @@ func parseChirpstackWebhook(body []byte) (string, error) {
 	deviceLabel := labelsMap[devEui]
 
 	if payload.BatteryLevel > 0 {
-		log.Warn().Str("devEui", devEui).Msg("Got battery level")
+		log.Debug().Str("devEui", devEui).Msg("Got battery level")
 		deviceBattery.With(labelsMap[devEui]).Set(float64(payload.BatteryLevel))
 	}
 	deviceFcnt.With(deviceLabel).Set(float64(payload.FCnt))
@@ -206,6 +212,10 @@ func parseChirpstackWebhook(body []byte) (string, error) {
 		deviceConfirmed.With(deviceLabel).Inc()
 	} else {
 		deviceUnconfirmed.With(deviceLabel).Inc()
+	}
+	if payload.Level != "" {
+		deviceMsgLevelCount.With(prometheus.Labels{"deviceName": payload.DeviceInfo.DeviceName, "deviceEui": payload.DeviceInfo.DevEui, "level": payload.Level, "code": payload.Code}).Inc()
+		log.Warn().Str("devEui", devEui).Str("OUI", OUI).Str("level", payload.Level).Str("code", payload.Code).Msgf("Webhook posted an error")
 	}
 	switch OUI {
 	// Sensecap
@@ -230,28 +240,41 @@ func parseChirpstackWebhook(body []byte) (string, error) {
 		}
 	// REJEE
 	case "ca:cb:b8":
-		deviceLabel["type"] = "battery"
-		deviceMetric.With(deviceLabel).Set(float64(payload.Object.Battery))
-		deviceLabel["type"] = "airTemperature"
-		deviceMetric.With(deviceLabel).Set(float64(payload.Object.Temperature))
-		deviceLabel["type"] = "airHumidity"
-		deviceMetric.With(deviceLabel).Set(float64(payload.Object.Humidity))
-		deviceLabel["type"] = "vol"
-		deviceMetric.With(deviceLabel).Set(float64(payload.Object.Vol))
+		if payload.Object.Battery > 0 {
+			deviceLabel["type"] = "battery"
+			deviceMetric.With(deviceLabel).Set(float64(payload.Object.Battery))
+		}
+		if payload.Object.Temperature > 0 {
+			deviceLabel["type"] = "airTemperature"
+			deviceMetric.With(deviceLabel).Set(float64(payload.Object.Temperature))
+		}
+		if payload.Object.Humidity > 0 {
+			deviceLabel["type"] = "airHumidity"
+			deviceMetric.With(deviceLabel).Set(float64(payload.Object.Humidity))
+		}
+		if payload.Object.Vol > 0 {
+			deviceLabel["type"] = "vol"
+			deviceMetric.With(deviceLabel).Set(float64(payload.Object.Vol))
+		}
 	// DRAGINO
 	case "a8:40:41":
-		deviceLabel["type"] = "airTemperature"
-		deviceMetric.With(deviceLabel).Set(float64(payload.Object.TempCSHT))
-		deviceLabel["type"] = "airHumidity"
-		deviceMetric.With(deviceLabel).Set(float64(payload.Object.HumSHT))
+		if payload.Object.TempCSHT > 0 {
+			deviceLabel["type"] = "airTemperature"
+			deviceMetric.With(deviceLabel).Set(float64(payload.Object.TempCSHT))
+		}
+		if payload.Object.HumSHT > 0 {
+			deviceLabel["type"] = "airHumidity"
+			deviceMetric.With(deviceLabel).Set(float64(payload.Object.HumSHT))
+		}
 	default:
-		log.Warn().Str("devEui", devEui).Str("OUI", OUI).Msg("Unsupported OUI")
+		needDump = true
+		log.Warn().Str("devEui", devEui).Str("OUI", OUI).Msgf("Unsupported OUI")
 	}
-
 	// deviceLabel is a pointer to labelsMap[devEui] so we need to remove type which is not used by deviceLabel
 	delete(deviceLabel, "type")
-	log.Debug().Str("devEui", devEui).Str("OUI", OUI).Msg("Parsed Webhook")
-	return devEui, nil
+
+	log.Debug().Str("devEui", devEui).Str("OUI", OUI).Bool("needDump", needDump).Msg("Parsed Webhook")
+	return devEui, needDump, nil
 }
 
 // Get OUI in XX:XX:XX hex format
