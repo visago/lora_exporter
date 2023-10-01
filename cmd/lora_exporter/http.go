@@ -22,13 +22,12 @@ func startHttpServer() {
 	mux.HandleFunc("/hook", webhookHandler)
 	mux.HandleFunc("/dump", dumpHandler)
 	httpServer := &http.Server{
-		Addr:    config.Listen,
-		Handler: mux,
+		Addr:         config.Listen,
+		Handler:      mux,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  30 * time.Second,
 	}
-	httpServer.SetKeepAlivesEnabled(false)
-	//http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-	//	http.Redirect(w, r, "/metrics", http.StatusMovedPermanently)
-	//})
 	log.Info().Msgf("Listening on port %s for http requests", config.Listen)
 	go func() {
 		if err := httpServer.ListenAndServe(); err != nil {

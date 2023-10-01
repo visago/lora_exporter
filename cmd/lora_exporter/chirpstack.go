@@ -68,6 +68,14 @@ type WebHookDoc struct {
 		Battery     float64 `json:"battery"`
 		Temperature float64 `json:"temperature"`
 		Humidity    float64 `json:"humidity"`
+		// milesight
+		Decoded struct {
+			Humidity    float64 `json:"humidity"`
+			Temperature float64 `json:"temperature"`
+			Position    string  `json:"position"`
+			Battery     float64 `json:"battery"`
+			Distance    float64 `json:"distance"`
+		} `json:"decoded"`
 	} `json:"object"`
 	RxInfo []RxInfoDoc `json:"rxInfo"`
 	TxInfo struct {
@@ -126,6 +134,7 @@ func getDeviceStatus() {
 			}
 
 			conn, dialErr := grpc.Dial(config.ApiServer, dialOpts...)
+			defer conn.Close()
 			if dialErr != nil {
 				log.Error().Err(dialErr).Msgf("Failed to dial to %s", config.ApiServer)
 				grpcConnectionErrorTotal.Inc()
@@ -158,6 +167,7 @@ func getDeviceStatus() {
 	} else {
 		log.Debug().Msg("No API Key to getDeviceStatus")
 	}
+
 }
 
 func getApiKey() string {
@@ -262,9 +272,39 @@ func parseChirpstackWebhook(body []byte) (string, bool, error) {
 			deviceLabel["type"] = "airTemperature"
 			deviceMetric.With(deviceLabel).Set(float64(payload.Object.TempCSHT))
 		}
+		if payload.Object.TempCDS > 0 {
+			deviceLabel["type"] = "externalTemperature"
+			deviceMetric.With(deviceLabel).Set(float64(payload.Object.TempCDS))
+		}
 		if payload.Object.HumSHT > 0 {
 			deviceLabel["type"] = "airHumidity"
 			deviceMetric.With(deviceLabel).Set(float64(payload.Object.HumSHT))
+		}
+	// Milesight
+	case "24:e1:24":
+		if payload.Object.Decoded.Temperature > 0 {
+			deviceLabel["type"] = "airTemperature"
+			deviceMetric.With(deviceLabel).Set(float64(payload.Object.Decoded.Temperature))
+		}
+		if payload.Object.Decoded.Humidity > 0 {
+			deviceLabel["type"] = "airHumidity"
+			deviceMetric.With(deviceLabel).Set(float64(payload.Object.Decoded.Humidity))
+		}
+		if payload.Object.Decoded.Distance > 0 {
+			deviceLabel["type"] = "distance"
+			deviceMetric.With(deviceLabel).Set(float64(payload.Object.Decoded.Distance))
+		}
+		if len(payload.Object.Decoded.Position) > 0 {
+			deviceLabel["type"] = "position"
+			if payload.Object.Decoded.Position == "normal" {
+				deviceMetric.With(deviceLabel).Set(float64(0))
+			} else { // "tilt"
+				deviceMetric.With(deviceLabel).Set(float64(1))
+			}
+		}
+		if payload.Object.Decoded.Battery > 0 {
+			deviceLabel["type"] = "battery"
+			deviceMetric.With(deviceLabel).Set(float64(payload.Object.Decoded.Battery))
 		}
 	default:
 		needDump = true
