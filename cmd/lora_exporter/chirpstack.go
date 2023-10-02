@@ -46,6 +46,7 @@ type WebHookDoc struct {
 	BatteryLevelUnavailable bool    `json:"batteryLevelUnavailable"`
 	BatteryLevel            float64 `json:"batteryLevel"`
 	Object                  struct {
+		Battery float64 `json:"battery"`
 		// sensecap
 		Err      float64 `json:"err"`
 		Valid    bool    `json:"valid"`
@@ -65,16 +66,15 @@ type WebHookDoc struct {
 		Systimestamp float64 `json:"Systimestamp"`
 		// rejee
 		Vol         float64 `json:"vol"`
-		Battery     float64 `json:"battery"`
 		Temperature float64 `json:"temperature"`
 		Humidity    float64 `json:"humidity"`
 		// milesight
-		Decoded struct {
+		Position string  `json:"position"`
+		Distance float64 `json:"distance"`
+		Decoded  struct {
 			Humidity    float64 `json:"humidity"`
 			Temperature float64 `json:"temperature"`
-			Position    string  `json:"position"`
 			Battery     float64 `json:"battery"`
-			Distance    float64 `json:"distance"`
 		} `json:"decoded"`
 	} `json:"object"`
 	RxInfo []RxInfoDoc `json:"rxInfo"`
@@ -290,13 +290,13 @@ func parseChirpstackWebhook(body []byte) (string, bool, error) {
 			deviceLabel["type"] = "airHumidity"
 			deviceMetric.With(deviceLabel).Set(float64(payload.Object.Decoded.Humidity))
 		}
-		if payload.Object.Decoded.Distance > 0 {
+		if payload.Object.Distance > 0 {
 			deviceLabel["type"] = "distance"
-			deviceMetric.With(deviceLabel).Set(float64(payload.Object.Decoded.Distance))
+			deviceMetric.With(deviceLabel).Set(float64(payload.Object.Distance))
 		}
-		if len(payload.Object.Decoded.Position) > 0 {
+		if len(payload.Object.Position) > 0 {
 			deviceLabel["type"] = "position"
-			if payload.Object.Decoded.Position == "normal" {
+			if payload.Object.Position == "normal" {
 				deviceMetric.With(deviceLabel).Set(float64(0))
 			} else { // "tilt"
 				deviceMetric.With(deviceLabel).Set(float64(1))
@@ -305,6 +305,10 @@ func parseChirpstackWebhook(body []byte) (string, bool, error) {
 		if payload.Object.Decoded.Battery > 0 {
 			deviceLabel["type"] = "battery"
 			deviceMetric.With(deviceLabel).Set(float64(payload.Object.Decoded.Battery))
+		}
+		if payload.Object.Battery > 0 {
+			deviceLabel["type"] = "battery"
+			deviceMetric.With(deviceLabel).Set(float64(payload.Object.Battery))
 		}
 	default:
 		needDump = true

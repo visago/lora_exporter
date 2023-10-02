@@ -10,3 +10,6 @@
 
 # 2023.10.01
 * Fix GRPC connections not closed issue causing memory leak in chirpstack
+
+# 2023.10.02
+* Fixed bug in milesight distance sensor
