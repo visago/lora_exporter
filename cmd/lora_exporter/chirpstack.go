@@ -5,14 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"strings"
-	"time"
-
 	"github.com/chirpstack/chirpstack/api/go/v4/api"
+	"github.com/guregu/null"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog/log"
 	"google.golang.org/grpc"
+	"os"
+	"strings"
+	"time"
 )
 
 type WebHookDoc struct {
@@ -46,11 +46,11 @@ type WebHookDoc struct {
 	BatteryLevelUnavailable bool    `json:"batteryLevelUnavailable"`
 	BatteryLevel            float64 `json:"batteryLevel"`
 	Object                  struct {
-		Battery float64 `json:"battery"`
+		Battery null.Float `json:"battery"`
 		// sensecap
-		Err      float64 `json:"err"`
-		Valid    bool    `json:"valid"`
-		Payload  string  `json:"payload"`
+		Err      null.Float `json:"err"`
+		Valid    bool       `json:"valid"`
+		Payload  string     `json:"payload"`
 		Messages []struct {
 			MeasurementValue float64 `json:"measurementValue"`
 			MeasurementID    float64 `json:"measurementId"`
@@ -59,22 +59,29 @@ type WebHookDoc struct {
 			Type             string  `json:"type"`
 		} `json:"messages"`
 		// dragino-lht52
-		TempCDS      float64 `json:"TempC_DS"`
-		Ext          float64 `json:"Ext"`
-		TempCSHT     float64 `json:"TempC_SHT"`
-		HumSHT       float64 `json:"Hum_SHT"`
-		Systimestamp float64 `json:"Systimestamp"`
+		TempCDS      null.Float `json:"TempC_DS"`
+		Ext          null.Float `json:"Ext"`
+		TempCSHT     null.Float `json:"TempC_SHT"`
+		HumSHT       null.Float `json:"Hum_SHT"`
+		Systimestamp null.Float `json:"Systimestamp"`
+		// dragino-ld02 (door sensor)
+		LastDoorOpenDuration null.Float `json:"LAST_DOOR_OPEN_DURATION"`
+		Alarm                null.Float `json:"ALARM"`
+		DoorOpenTimes        null.Float `json:"DOOR_OPEN_TIMES"`
+		BatV                 null.Float `json:"BAT_V"`
+		Mod                  null.Float `json:"MOD"`
+		DoorOpenStatus       null.Float `json:"DOOR_OPEN_STATUS"`
 		// rejee
-		Vol         float64 `json:"vol"`
-		Temperature float64 `json:"temperature"`
-		Humidity    float64 `json:"humidity"`
+		Vol         null.Float `json:"vol"`
+		Temperature null.Float `json:"temperature"`
+		Humidity    null.Float `json:"humidity"`
 		// milesight
-		Position string  `json:"position"`
-		Distance float64 `json:"distance"`
+		Position string     `json:"position"`
+		Distance null.Float `json:"distance"`
 		Decoded  struct {
-			Humidity    float64 `json:"humidity"`
-			Temperature float64 `json:"temperature"`
-			Battery     float64 `json:"battery"`
+			Humidity    null.Float `json:"humidity"`
+			Temperature null.Float `json:"temperature"`
+			Battery     null.Float `json:"battery"`
 		} `json:"decoded"`
 	} `json:"object"`
 	RxInfo []RxInfoDoc `json:"rxInfo"`
@@ -250,49 +257,73 @@ func parseChirpstackWebhook(body []byte) (string, bool, error) {
 		}
 	// REJEE
 	case "ca:cb:b8":
-		if payload.Object.Battery > 0 {
+		if payload.Object.Battery.Valid {
 			deviceLabel["type"] = "battery"
-			deviceMetric.With(deviceLabel).Set(float64(payload.Object.Battery))
+			deviceMetric.With(deviceLabel).Set(payload.Object.Battery.Float64)
 		}
-		if payload.Object.Temperature > 0 {
+		if payload.Object.Temperature.Valid {
 			deviceLabel["type"] = "airTemperature"
-			deviceMetric.With(deviceLabel).Set(float64(payload.Object.Temperature))
+			deviceMetric.With(deviceLabel).Set(payload.Object.Temperature.Float64)
 		}
-		if payload.Object.Humidity > 0 {
+		if payload.Object.Humidity.Valid {
 			deviceLabel["type"] = "airHumidity"
-			deviceMetric.With(deviceLabel).Set(float64(payload.Object.Humidity))
+			deviceMetric.With(deviceLabel).Set(payload.Object.Humidity.Float64)
 		}
-		if payload.Object.Vol > 0 {
+		if payload.Object.Vol.Valid {
 			deviceLabel["type"] = "vol"
-			deviceMetric.With(deviceLabel).Set(float64(payload.Object.Vol))
+			deviceMetric.With(deviceLabel).Set(payload.Object.Vol.Float64)
 		}
 	// DRAGINO
 	case "a8:40:41":
-		if payload.Object.TempCSHT > 0 {
+		if payload.Object.TempCSHT.Valid {
 			deviceLabel["type"] = "airTemperature"
-			deviceMetric.With(deviceLabel).Set(float64(payload.Object.TempCSHT))
+			deviceMetric.With(deviceLabel).Set(payload.Object.TempCSHT.Float64)
 		}
-		if payload.Object.TempCDS > 0 {
+		if payload.Object.TempCDS.Valid {
 			deviceLabel["type"] = "externalTemperature"
-			deviceMetric.With(deviceLabel).Set(float64(payload.Object.TempCDS))
+			deviceMetric.With(deviceLabel).Set(payload.Object.TempCDS.Float64)
 		}
-		if payload.Object.HumSHT > 0 {
+		if payload.Object.HumSHT.Valid {
 			deviceLabel["type"] = "airHumidity"
-			deviceMetric.With(deviceLabel).Set(float64(payload.Object.HumSHT))
+			deviceMetric.With(deviceLabel).Set(payload.Object.HumSHT.Float64)
+		}
+		if payload.Object.LastDoorOpenDuration.Valid {
+			deviceLabel["type"] = "lastOpenDuration"
+			deviceMetric.With(deviceLabel).Set(payload.Object.LastDoorOpenDuration.Float64)
+		}
+		if payload.Object.Alarm.Valid {
+			deviceLabel["type"] = "alarm"
+			deviceMetric.With(deviceLabel).Set(payload.Object.Alarm.Float64)
+		}
+		if payload.Object.DoorOpenTimes.Valid {
+			deviceLabel["type"] = "openCount"
+			deviceMetric.With(deviceLabel).Set(payload.Object.DoorOpenTimes.Float64)
+		}
+		if payload.Object.BatV.Valid {
+			deviceLabel["type"] = "batteryVolts"
+			deviceMetric.With(deviceLabel).Set(payload.Object.BatV.Float64)
+		}
+		if payload.Object.Mod.Valid {
+			deviceLabel["type"] = "mod"
+			deviceMetric.With(deviceLabel).Set(payload.Object.Mod.Float64)
+		}
+		if payload.Object.DoorOpenStatus.Valid {
+			deviceLabel["type"] = "openStatus"
+			deviceMetric.With(deviceLabel).Set(payload.Object.DoorOpenStatus.Float64)
 		}
 	// Milesight
 	case "24:e1:24":
-		if payload.Object.Decoded.Temperature > 0 {
+		if payload.Object.Decoded.Temperature.Valid {
 			deviceLabel["type"] = "airTemperature"
-			deviceMetric.With(deviceLabel).Set(float64(payload.Object.Decoded.Temperature))
+			deviceMetric.With(deviceLabel).Set(payload.Object.Decoded.Temperature.Float64)
 		}
-		if payload.Object.Decoded.Humidity > 0 {
+		if payload.Object.Decoded.Humidity.Valid {
 			deviceLabel["type"] = "airHumidity"
-			deviceMetric.With(deviceLabel).Set(float64(payload.Object.Decoded.Humidity))
+			deviceMetric.With(deviceLabel).Set(payload.Object.Decoded.Humidity.Float64)
 		}
-		if payload.Object.Distance > 0 {
+		if payload.Object.Distance.Valid {
 			deviceLabel["type"] = "distance"
-			deviceMetric.With(deviceLabel).Set(float64(payload.Object.Distance))
+			deviceMetric.With(deviceLabel).Set(payload.Object.Distance.Float64)
 		}
 		if len(payload.Object.Position) > 0 {
 			deviceLabel["type"] = "position"
@@ -302,13 +333,13 @@ func parseChirpstackWebhook(body []byte) (string, bool, error) {
 				deviceMetric.With(deviceLabel).Set(float64(1))
 			}
 		}
-		if payload.Object.Decoded.Battery > 0 {
+		if payload.Object.Decoded.Battery.Valid {
 			deviceLabel["type"] = "battery"
-			deviceMetric.With(deviceLabel).Set(float64(payload.Object.Decoded.Battery))
+			deviceMetric.With(deviceLabel).Set(payload.Object.Decoded.Battery.Float64)
 		}
-		if payload.Object.Battery > 0 {
+		if payload.Object.Battery.Valid {
 			deviceLabel["type"] = "battery"
-			deviceMetric.With(deviceLabel).Set(float64(payload.Object.Battery))
+			deviceMetric.With(deviceLabel).Set(payload.Object.Battery.Float64)
 		}
 	default:
 		needDump = true

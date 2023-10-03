@@ -6,6 +6,7 @@ require (
 	github.com/caarlos0/env/v9 v9.0.0
 	github.com/chirpstack/chirpstack/api/go/v4 v4.4.3
 	github.com/go-co-op/gocron v1.32.1
+	github.com/guregu/null v4.0.0+incompatible
 	github.com/prometheus/client_golang v1.16.0
 	github.com/rs/zerolog v1.30.0
 	google.golang.org/grpc v1.57.0

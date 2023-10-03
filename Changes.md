@@ -13,3 +13,7 @@
 
 # 2023.10.02
 * Fixed bug in milesight distance sensor
+
+# 2023.10.03
+* Refactor to support nulls
+* Add Dragino door sensor
