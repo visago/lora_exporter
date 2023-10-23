@@ -11,6 +11,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog/log"
 )
@@ -66,8 +67,14 @@ func webhookHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err2.Error(), http.StatusBadRequest)
 			return
 		}
+		if len(config.Forward) > 0 {
+			for _, url := range strings.Split(config.Forward, ",") {
+				log.Info().Str("url", url).Msg("Pretend to forward webhook")
+				forwardConnectionTotal.With(prometheus.Labels{"url": url}).Inc()
+			}
+		}
 		fmt.Fprintf(w, `ok`)
-		log.Info().Str("devEui", devEui).Str("dump", filename).Str("method", r.Method).Str("IP", ip).Str("User-Agent", ua).Str("Authorization", auth).Msg("Got webhook request")
+		log.Info().Str("devEui", devEui).Str("dump", filename).Str("method", r.Method).Str("IP", ip).Str("User-Agent", ua).Str("Authorization", auth).Int("size", len(body)).Msg("Got webhook request")
 	default:
 		log.Info().Str("method", r.Method).Str("IP", ip).Str("User-Agent", ua).Str("Authorization", auth).Msg("Got lost soul")
 		http.Redirect(w, r, "/metrics", http.StatusMovedPermanently)
