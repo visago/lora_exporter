@@ -217,6 +217,13 @@ func parseChirpstackWebhook(body []byte) (string, bool, error) {
 		}
 	}
 
+	// We check if this is the first time
+	_, proccesedBefore := labelsMap[devEui]
+	if !proccesedBefore {
+		log.Info().Str("deviceName", payload.DeviceInfo.DeviceName).Str("deviceEui", payload.DeviceInfo.DevEui).Msg("First time procesing this deviceEUI, dumping in case.")
+		needDump = true
+	}
+
 	labelsMap[devEui] = prometheus.Labels{"deviceName": payload.DeviceInfo.DeviceName, "deviceEui": payload.DeviceInfo.DevEui}
 	deviceLabel := labelsMap[devEui]
 

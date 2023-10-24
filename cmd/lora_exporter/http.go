@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,6 +16,40 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog/log"
 )
+
+func startForwardServer() {
+	go func() {
+		for {
+			body := <-backgroundChannel
+			log.Debug().Int("size", len(body)).Msg("Got background webhook forward request")
+			if len(config.Forward) > 0 {
+				for _, url := range strings.Split(config.Forward, ",") {
+					log.Debug().Str("url", url).Msg("forwarding")
+					req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(body))
+					if err != nil {
+						forwardConnectionErrorTotal.With(prometheus.Labels{"url": url}).Inc()
+						log.Error().Err(err).Str("url", url).Msg("Failed to create outgoing forward request")
+						break
+					}
+					req.Header.Set("Content-Type", "application/json")
+					res, err2 := http.DefaultClient.Do(req)
+					if err2 != nil {
+						log.Error().Err(err2).Str("url", url).Msg("Failed to do outgoing forward request")
+						break
+					}
+					if res.StatusCode == 200 {
+						log.Debug().Int("status", res.StatusCode).Str("url", url).Msg("Forwarded webhook")
+						forwardConnectionSuccessTotal.With(prometheus.Labels{"url": url}).Inc()
+					} else {
+						log.Error().Int("status", res.StatusCode).Str("url", url).Msg("Forwarded webhook but got non-200 reply")
+						forwardConnectionErrorTotal.With(prometheus.Labels{"url": url}).Inc()
+
+					}
+				}
+			}
+		}
+	}()
+}
 
 func startHttpServer() {
 	mux := http.NewServeMux()
@@ -45,11 +80,11 @@ func webhookHandler(w http.ResponseWriter, r *http.Request) {
 	ip := ReadUserIP(r)
 	switch r.Method {
 	case "POST":
-		webhookConnectionTotal.Inc()
+		webhookConnectionTotal.With(prometheus.Labels{"ip": ip}).Inc()
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			log.Error().Err(err).Str("IP", ip).Str("User-Agent", ua).Str("Authorization", auth).Msg("Failed to read request body")
-			webhookConnectionErrorTotal.Inc()
+			webhookConnectionErrorTotal.With(prometheus.Labels{"ip": ip}).Inc()
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -59,7 +94,7 @@ func webhookHandler(w http.ResponseWriter, r *http.Request) {
 			filename = dumpFile(body)
 		}
 		if err2 != nil {
-			webhookConnectionErrorTotal.Inc()
+			webhookConnectionErrorTotal.With(prometheus.Labels{"ip": ip}).Inc()
 			if filename == "" { // We already dumped it since its in debug mode
 				filename = dumpFile(body)
 			}
@@ -68,10 +103,8 @@ func webhookHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if len(config.Forward) > 0 {
-			for _, url := range strings.Split(config.Forward, ",") {
-				log.Info().Str("url", url).Msg("Pretend to forward webhook")
-				forwardConnectionTotal.With(prometheus.Labels{"url": url}).Inc()
-			}
+			log.Debug().Int("size", len(body)).Msg("Forward webhook body to background task")
+			backgroundChannel <- body
 		}
 		fmt.Fprintf(w, `ok`)
 		log.Info().Str("devEui", devEui).Str("dump", filename).Str("method", r.Method).Str("IP", ip).Str("User-Agent", ua).Str("Authorization", auth).Int("size", len(body)).Msg("Got webhook request")
@@ -82,7 +115,8 @@ func webhookHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func dumpHandler(w http.ResponseWriter, r *http.Request) {
-	webhookConnectionTotal.Inc()
+	ip := ReadUserIP(r)
+	webhookConnectionTotal.With(prometheus.Labels{"ip": ip}).Inc()
 	ua := filterAscii(r.Header.Get("User-Agent"))
 	auth := filterAscii(r.Header.Get("Authorization"))
 	log.Debug().Str("User-Agent", ua).Str("Authorization", auth).Msg("Got request")
@@ -90,7 +124,7 @@ func dumpHandler(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Error().Err(err).Msg("Failed to ready request body")
-		webhookConnectionErrorTotal.Inc()
+		webhookConnectionErrorTotal.With(prometheus.Labels{"ip": ip}).Inc()
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

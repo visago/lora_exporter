@@ -1,0 +1,59 @@
+{  
+  "deduplicationId": "32c5348a-c5e7-478a-a4f2-5eb5ebcd2091",
+  "time": "2023-09-30T04:25:35.168656+00:00",
+  "deviceInfo": {
+    "tenantId": "52f14cd4-c6f1-4fbd-8f87-4025e1d49242",
+    "tenantName": "A Bit Byte",
+    "applicationId": "c47773da-3624-488a-9f37-545307ac7c28",
+    "applicationName": "Datacake",
+    "deviceProfileId": "da915b7e-0b6c-40b0-b220-6ee0353c595b",
+    "deviceProfileName": "EM300-TH",
+    "deviceName": "ABB-MS-Temp",
+    "devEui": "24e124136d355281",
+    "deviceClassEnabled": "CLASS_A",
+    "tags": {}
+  },
+  "devAddr": "00de8967",
+  "adr": true,
+  "dr": 5,
+  "fCnt": 338,
+  "fPort": 85,
+  "confirmed": false,
+  "data": "A2c3AQRofw==",
+  "object": {
+    "decoded": {
+      "humidity": 63.5,
+      "temperature" : 0
+    }
+  },
+  "rxInfo": [
+    {
+      "gatewayId": "24e124fffef7e872",
+      "uplinkId": 35537,
+      "time": "2023-09-30T04:25:35.168656+00:00",
+      "rssi": -43,
+      "snr": 13.5,
+      "channel": 1,
+      "location": {
+        "latitude": 1.4437033714156848,
+        "longitude": 103.80742119859127
+      },
+      "context": "4cNQgQ==",
+      "metadata": {
+        "region_config_id": "as923",
+        "region_common_name": "AS923"
+      },
+      "crcStatus": "CRC_OK"
+    }
+  ],
+  "txInfo": {
+    "frequency": 923400000,
+    "modulation": {
+      "lora": {
+        "bandwidth": 125000,
+        "spreadingFactor": 7,
+        "codeRate": "CR_4_5"
+      }
+    }
+  }
+}

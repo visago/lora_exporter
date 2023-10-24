@@ -19,19 +19,20 @@ var (
 	labelsDeviceMsgLevel = []string{"deviceName", "deviceEui", "level", "code"}
 	labelsDeviceMetric   = []string{"deviceName", "deviceEui", "type"}
 	labelsForward        = []string{"url"}
+	labelsWebhook        = []string{"ip"}
 
-	webhookConnectionTotal = promauto.NewCounter(prometheus.CounterOpts{
+	webhookConnectionTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: metricsPrefix + "_webhook_total",
-		Help: "The total number of connections",
-	})
-	webhookConnectionErrorTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Help: "The total number of connections (Includes errors)",
+	}, labelsWebhook)
+	webhookConnectionErrorTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: metricsPrefix + "_webhook_error_total",
 		Help: "The total number of errors",
-	})
+	}, labelsWebhook)
 
-	forwardConnectionTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+	forwardConnectionSuccessTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: metricsPrefix + "_forward_total",
-		Help: "The total number of forwarded webhooks",
+		Help: "The total number of successful forwarded webhooks",
 	}, labelsForward)
 	forwardConnectionErrorTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: metricsPrefix + "_forward_error_total",

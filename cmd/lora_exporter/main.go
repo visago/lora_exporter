@@ -1,6 +1,7 @@
 package main
 
 import (
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -31,11 +32,13 @@ type EnvConfig struct {
 }
 
 var config EnvConfig
+var backgroundChannel chan []byte
 
 func main() {
 	if err := env.Parse(&config); err != nil {
 		log.Error().Err(err).Msg("Failed to parse env configuration")
 	}
+	cron := gocron.NewScheduler(time.UTC)
 
 	if config.Debug {
 		log.Logger = log.With().Caller().Logger()
@@ -51,6 +54,7 @@ func main() {
 			file = short
 			return file + ":" + strconv.Itoa(line)
 		}
+		cron.Every(config.Interval).Minutes().SingletonMode().Do(printMemUsage)
 	} else {
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	}
@@ -59,9 +63,9 @@ func main() {
 	log.Info().Int("interval", config.Interval).Str("buildVersion", BuildVersion).Str("buildTime", BuildTime).Str("buildBranch", BuildBranch).Str("buildRevision", BuildRevision).Msg("loraExporter started")
 
 	initMetrics()
-	startHttpServer()
-	cron := gocron.NewScheduler(time.UTC)
 	if len(config.Forward) > 0 {
+		backgroundChannel = make(chan []byte)
+		startForwardServer()
 		for _, url := range strings.Split(config.Forward, ",") {
 			log.Info().Msgf("Will forward webhooks to %s", url)
 		}
@@ -72,6 +76,12 @@ func main() {
 	} else {
 		log.Info().Msg("No APISERVER defined. Will not query Chirpstack for device status")
 	}
-
+	startHttpServer()
 	cron.StartBlocking()
+}
+
+func printMemUsage() {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	log.Info().Uint64("alloc", m.Alloc).Uint64("totalAlloc", m.TotalAlloc).Uint64("sys", m.Sys).Uint32("numGC", m.NumGC).Msg("memory usage dump")
 }
