@@ -15,6 +15,14 @@ import (
 	"time"
 )
 
+type WebHookSensecapMessage struct {
+	MeasurementValue json.Number `json:"measurementValue"`
+	MeasurementID    json.Number `json:"measurementId"`
+	Battery          json.Number `json:"battery"`
+	Interval         json.Number `json:"interval"`
+	Type             string      `json:"type"`
+}
+
 type WebHookDoc struct {
 	DeduplicationID string    `json:"deduplicationId"`
 	Time            time.Time `json:"time"`
@@ -48,16 +56,10 @@ type WebHookDoc struct {
 	Object                  struct {
 		Battery null.Float `json:"battery"`
 		// sensecap
-		Err      null.Float `json:"err"`
-		Valid    bool       `json:"valid"`
-		Payload  string     `json:"payload"`
-		Messages []struct {
-			MeasurementValue float64 `json:"measurementValue"`
-			MeasurementID    float64 `json:"measurementId"`
-			Battery          float64 `json:"battery"`
-			Interval         float64 `json:"interval"`
-			Type             string  `json:"type"`
-		} `json:"messages"`
+		Err      null.Float      `json:"err"`
+		Valid    bool            `json:"valid"`
+		Payload  string          `json:"payload"`
+		Messages json.RawMessage `json:"messages"`
 		// dragino-lht52
 		TempCDS      null.Float `json:"TempC_DS"`
 		Ext          null.Float `json:"Ext"`
@@ -143,7 +145,7 @@ func getDeviceStatus() {
 			conn, dialErr := grpc.Dial(config.ApiServer, dialOpts...)
 			defer conn.Close()
 			if dialErr != nil {
-				log.Error().Err(dialErr).Msgf("Failed to dial to %s", config.ApiServer)
+				log.Error().Caller().Err(dialErr).Msgf("Failed to dial to %s", config.ApiServer)
 				grpcConnectionErrorTotal.Inc()
 				return
 			}
@@ -153,7 +155,7 @@ func getDeviceStatus() {
 				if err != nil {
 					grpcApiErrorTotal.Inc()
 					delete(labelsMap, devEui)
-					log.Error().Err(err).Str("devEui", devEui).Msgf("Failed to get device, will not try again for now.")
+					log.Error().Caller().Err(err).Str("devEui", devEui).Msgf("Failed to get device, will not try again for now.")
 				} else {
 					grpcApiTotal.Inc()
 					if deviceResponse.GetDeviceStatus().GetBatteryLevel() > 0 {
@@ -192,20 +194,45 @@ func getApiKey() string {
 
 // https://sensecap-docs.seeed.cc/measurement_list.html
 var senseCapMeasurementIdTypeMap = map[float64]string{
+	3000: "battery",
 	4097: "airTemperature",
 	4098: "airHumidity",
 	4099: "lightIntensity",
 	4100: "co2",
 	4101: "barometricPressure",
+	4197: "longitude",
+	4198: "latitude",
+	4199: "lightIntensity",
+	4200: "sos",
 }
 
 func parseChirpstackWebhook(body []byte) (string, bool, error) {
 	var payload WebHookDoc
+	var payloadSensecap []WebHookSensecapMessage
 	// set needDump to true if we need a dump, we do this so we don't dump twice
 	needDump := false
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return "", true, err
 	}
+	if len(payload.Object.Messages) > 0 {
+		// This is a sensecap device
+		if err := json.Unmarshal(payload.Object.Messages, &payloadSensecap); err != nil {
+			// If it fails to unmarshal its because its an array of array of messages. So we dearray it
+			var deArray []json.RawMessage
+			if err := json.Unmarshal(payload.Object.Messages, &deArray); err != nil {
+				// Its not an array of array i guess :P return error
+				return "", true, err
+			}
+			for _, rawJson := range deArray {
+				var newMessages []WebHookSensecapMessage
+				if err := json.Unmarshal(rawJson, &newMessages); err != nil {
+					return "", true, err
+				}
+				payloadSensecap = append(payloadSensecap, newMessages...)
+			}
+		}
+	}
+
 	devEui := payload.DeviceInfo.DevEui
 	OUI := getOui(devEui)
 	if len(payload.RxInfo) > 0 {
@@ -245,21 +272,24 @@ func parseChirpstackWebhook(body []byte) (string, bool, error) {
 	// Sensecap
 	case "2c:f7:f1":
 		// https://sensecap-docs.seeed.cc/measurement_list.html
-		for _, m := range payload.Object.Messages {
+		for _, m := range payloadSensecap {
 			switch m.Type {
-			case "report_telemetry":
-				if metricType, ok := senseCapMeasurementIdTypeMap[m.MeasurementID]; ok {
-					deviceLabel["type"] = metricType
-					deviceMetric.With(deviceLabel).Set(float64(m.MeasurementValue))
-				} else {
-					log.Error().Str("DevEUI", payload.DeviceInfo.DevEui).Msgf("MeasurementId %0f is not supported", m.MeasurementID)
-				}
 			case "upload_battery":
 				deviceLabel["type"] = "battery"
-				deviceMetric.With(deviceLabel).Set(float64(m.Battery))
+				deviceMetric.With(deviceLabel).Set(castToFloat64(m.Battery))
 			case "upload_interval":
 				deviceLabel["type"] = "interval"
-				deviceMetric.With(deviceLabel).Set(float64(m.Interval))
+				deviceMetric.With(deviceLabel).Set(castToFloat64(m.Interval))
+			default:
+				id := castToFloat64(m.MeasurementID)
+				if id > 0 {
+					if metricType, ok := senseCapMeasurementIdTypeMap[id]; ok {
+						deviceLabel["type"] = metricType
+						deviceMetric.With(deviceLabel).Set(castToFloat64(m.MeasurementValue))
+					} else {
+						log.Error().Caller().Str("DevEUI", payload.DeviceInfo.DevEui).Msgf("MeasurementId %0f is not supported", m.MeasurementID)
+					}
+				}
 			}
 		}
 	// REJEE
@@ -366,4 +396,10 @@ func getOui(s string) string {
 	} else {
 		return "00:00:00"
 	}
+}
+
+// This casts json.Nubmer without the error
+func castToFloat64(num json.Number) float64 {
+	f, _ := num.Float64()
+	return f
 }

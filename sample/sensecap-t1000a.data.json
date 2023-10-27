@@ -1,0 +1,95 @@
+{
+  "deduplicationId": "62dcaa06-0852-48b7-a10f-2a011283f4fb",
+  "time": "2023-10-27T08:17:46.007267716+00:00",
+  "deviceInfo": {
+    "tenantId": "8ef01ed9-0acb-479e-81c8-7d7b14a0c8bf",
+    "tenantName": "moomooland",
+    "applicationId": "d44c5f18-6b24-4163-8d5c-73cd13cd996a",
+    "applicationName": "elvinApps",
+    "deviceProfileId": "f650bf23-4988-4fd9-86d5-1cec736e9603",
+    "deviceProfileName": "sensecap-t1000ab",
+    "deviceName": "sensecap-t1000a-0",
+    "devEui": "2cf7f1c0538008e5",
+    "deviceClassEnabled": "CLASS_A",
+    "tags": {}
+  },
+  "devAddr": "0172ee53",
+  "adr": false,
+  "dr": 4,
+  "fCnt": 4,
+  "fPort": 5,
+  "confirmed": true,
+  "data": "BgAAgABlO3InBjFi0AAVcE4BRgBkZA==",
+  "object": {
+    "valid": true,
+    "err": 0,
+    "payload": "0600008000653B7227063162D00015704E0146006464",
+    "messages": [
+      [
+        {
+          "type": "SOS Event",
+          "measurementValue": "0",
+          "measurementId": "4200"
+        },
+        {
+          "measurementValue": 103.899856,
+          "type": "Longitude",
+          "measurementId": "4197"
+        },
+        {
+          "measurementId": "4198",
+          "type": "Latitude",
+          "measurementValue": 1.405006
+        },
+        {
+          "measurementId": "4097",
+          "measurementValue": 32.6,
+          "type": "Air Temperature"
+        },
+        {
+          "measurementId": "4199",
+          "type": "Light",
+          "measurementValue": 100
+        },
+        {
+          "measurementValue": 100,
+          "type": "Battery",
+          "measurementId": "3000"
+        },
+        {
+          "measurementValue": 1698394663000,
+          "type": "Timestamp"
+        }
+      ]
+    ]
+  },
+  "rxInfo": [
+    {
+      "gatewayId": "ac1f09fffe0dec45",
+      "uplinkId": 1065,
+      "rssi": -54,
+      "snr": 15.5,
+      "channel": 1,
+      "location": {
+        "latitude": 1.4044748,
+        "longitude": 103.8998963
+      },
+      "context": "Hk+1KA==",
+      "metadata": {
+        "region_common_name": "AS923",
+        "region_config_id": "as923"
+      },
+      "crcStatus": "CRC_OK"
+    }
+  ],
+  "txInfo": {
+    "frequency": 923400000,
+    "modulation": {
+      "lora": {
+        "bandwidth": 125000,
+        "spreadingFactor": 8,
+        "codeRate": "CR_4_5"
+      }
+    }
+  }
+}

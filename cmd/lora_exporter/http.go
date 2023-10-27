@@ -28,20 +28,20 @@ func startForwardServer() {
 					req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(body))
 					if err != nil {
 						forwardConnectionErrorTotal.With(prometheus.Labels{"url": url}).Inc()
-						log.Error().Err(err).Str("url", url).Msg("Failed to create outgoing forward request")
+						log.Error().Caller().Err(err).Str("url", url).Msg("Failed to create outgoing forward request")
 						break
 					}
 					req.Header.Set("Content-Type", "application/json")
 					res, err2 := http.DefaultClient.Do(req)
 					if err2 != nil {
-						log.Error().Err(err2).Str("url", url).Msg("Failed to do outgoing forward request")
+						log.Error().Caller().Err(err2).Str("url", url).Msg("Failed to do outgoing forward request")
 						break
 					}
 					if res.StatusCode == 200 {
 						log.Debug().Int("status", res.StatusCode).Str("url", url).Msg("Forwarded webhook")
 						forwardConnectionSuccessTotal.With(prometheus.Labels{"url": url}).Inc()
 					} else {
-						log.Error().Int("status", res.StatusCode).Str("url", url).Msg("Forwarded webhook but got non-200 reply")
+						log.Error().Caller().Int("status", res.StatusCode).Str("url", url).Msg("Forwarded webhook but got non-200 reply")
 						forwardConnectionErrorTotal.With(prometheus.Labels{"url": url}).Inc()
 
 					}
@@ -83,7 +83,7 @@ func webhookHandler(w http.ResponseWriter, r *http.Request) {
 		webhookConnectionTotal.With(prometheus.Labels{"ip": ip}).Inc()
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			log.Error().Err(err).Str("IP", ip).Str("User-Agent", ua).Str("Authorization", auth).Msg("Failed to read request body")
+			log.Error().Caller().Err(err).Str("IP", ip).Str("User-Agent", ua).Str("Authorization", auth).Msg("Failed to read request body")
 			webhookConnectionErrorTotal.With(prometheus.Labels{"ip": ip}).Inc()
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -98,7 +98,7 @@ func webhookHandler(w http.ResponseWriter, r *http.Request) {
 			if filename == "" { // We already dumped it since its in debug mode
 				filename = dumpFile(body)
 			}
-			log.Error().Err(err2).Str("dump", filename).Str("IP", ip).Str("User-Agent", ua).Str("Authorization", auth).Msg("Failed to parse request body")
+			log.Error().Caller().Err(err2).Str("dump", filename).Str("IP", ip).Str("User-Agent", ua).Str("Authorization", auth).Msg("Failed to parse request body")
 			http.Error(w, err2.Error(), http.StatusBadRequest)
 			return
 		}
@@ -123,7 +123,7 @@ func dumpHandler(w http.ResponseWriter, r *http.Request) {
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to ready request body")
+		log.Error().Caller().Err(err).Msg("Failed to ready request body")
 		webhookConnectionErrorTotal.With(prometheus.Labels{"ip": ip}).Inc()
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -137,12 +137,12 @@ func dumpFile(s []byte) string {
 	filename := config.DumpFolder + time.Now().Format("/20060102-150405.000.dump")
 	f, err := os.Create(filename)
 	if err != nil {
-		log.Error().Err(err).Str("filename", filename).Msg("Failed to open file to write")
+		log.Error().Caller().Err(err).Str("filename", filename).Msg("Failed to open file to write")
 	}
 	defer f.Close()
 	nb, err2 := f.Write(s)
 	if err2 != nil {
-		log.Error().Err(err).Str("filename", filename).Msg("Failed to write stringo to file")
+		log.Error().Caller().Err(err).Str("filename", filename).Msg("Failed to write stringo to file")
 	} else {
 		log.Debug().Str("filename", filename).Msgf("Wrote %0d bytes to file", nb)
 	}
