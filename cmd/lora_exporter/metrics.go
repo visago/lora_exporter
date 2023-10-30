@@ -14,12 +14,13 @@ const (
 var (
 	labelsMap = map[string]prometheus.Labels{}
 
-	labelsDeviceGateway  = []string{"gatewayId", "deviceName", "deviceEui"}
-	labelsDevice         = []string{"deviceName", "deviceEui"}
-	labelsDeviceMsgLevel = []string{"deviceName", "deviceEui", "level", "code"}
-	labelsDeviceMetric   = []string{"deviceName", "deviceEui", "type"}
-	labelsForward        = []string{"url"}
-	labelsWebhook        = []string{"ip"}
+	labelsDeviceGateway   = []string{"gatewayId", "deviceName", "deviceEui"}
+	labelsDevice          = []string{"deviceName", "deviceEui"}
+	labelsDeviceMsgLevel  = []string{"deviceName", "deviceEui", "level", "code"}
+	labelsDeviceMetric    = []string{"deviceName", "deviceEui", "type"}
+	labelsDeviceMetricGeo = []string{"deviceName", "deviceEui", "type", "lat", "lon"}
+	labelsForward         = []string{"url"}
+	labelsWebhook         = []string{"ip"}
 
 	webhookConnectionTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: metricsPrefix + "_webhook_total",
@@ -92,6 +93,12 @@ var (
 		Name: metricsPrefix + "_devices_metric",
 		Help: "metric value of device",
 	}, labelsDeviceMetric,
+	)
+
+	deviceMetricGeo = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: metricsPrefix + "_devices_metric_geo",
+		Help: "metric value of device",
+	}, labelsDeviceMetricGeo,
 	)
 
 	deviceLastseen = promauto.NewGaugeVec(prometheus.GaugeOpts{

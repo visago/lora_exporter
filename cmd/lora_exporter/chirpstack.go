@@ -202,13 +202,16 @@ var senseCapMeasurementIdTypeMap = map[float64]string{
 	4101: "barometricPressure",
 	4197: "longitude",
 	4198: "latitude",
-	4199: "lightIntensity",
+	4199: "lightIntensityPercent",
 	4200: "sos",
 }
 
 func parseChirpstackWebhook(body []byte) (string, bool, error) {
 	var payload WebHookDoc
 	var payloadSensecap []WebHookSensecapMessage
+	var lastLat, lastLon float64
+	metricGeoFlag := false
+
 	// set needDump to true if we need a dump, we do this so we don't dump twice
 	needDump := false
 	if err := json.Unmarshal(body, &payload); err != nil {
@@ -286,12 +289,35 @@ func parseChirpstackWebhook(body []byte) (string, bool, error) {
 					if metricType, ok := senseCapMeasurementIdTypeMap[id]; ok {
 						deviceLabel["type"] = metricType
 						deviceMetric.With(deviceLabel).Set(castToFloat64(m.MeasurementValue))
+						if metricType == "longitude" {
+							metricGeoFlag = true
+							lastLon = castToFloat64(m.MeasurementValue)
+						} else if metricType == "latitude" {
+							metricGeoFlag = true
+							lastLat = castToFloat64(m.MeasurementValue)
+						}
 					} else {
 						log.Error().Caller().Str("DevEUI", payload.DeviceInfo.DevEui).Msgf("MeasurementId %0f is not supported", m.MeasurementID)
 					}
 				}
 			}
+
 		}
+		if metricGeoFlag {
+			// We have to loop through the data again to create new metrics with geo data
+			for _, m := range payloadSensecap {
+				id := castToFloat64(m.MeasurementID)
+				if id > 0 {
+					if metricType, ok := senseCapMeasurementIdTypeMap[id]; ok {
+						if metricType != "longitude" && metricType != "latitude" {
+							label := prometheus.Labels{"deviceName": payload.DeviceInfo.DeviceName, "deviceEui": payload.DeviceInfo.DevEui, "type": metricType, "lat": fmt.Sprintf("%f", lastLat), "lon": fmt.Sprintf("%f", lastLon)}
+							deviceMetricGeo.With(label).Set(castToFloat64(m.MeasurementValue))
+						}
+					}
+				}
+			}
+		}
+
 	// REJEE
 	case "ca:cb:b8":
 		if payload.Object.Battery.Valid {
@@ -382,6 +408,7 @@ func parseChirpstackWebhook(body []byte) (string, bool, error) {
 		needDump = true
 		log.Warn().Str("devEui", devEui).Str("OUI", OUI).Msgf("Unsupported OUI")
 	}
+
 	// deviceLabel is a pointer to labelsMap[devEui] so we need to remove type which is not used by deviceLabel
 	delete(deviceLabel, "type")
 
