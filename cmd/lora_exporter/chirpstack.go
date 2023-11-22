@@ -386,6 +386,10 @@ func parseChirpstackWebhook(body []byte) (string, bool, error) {
 		}
 	// Milesight
 	case "24:e1:24":
+		if payload.Object.Temperature.Valid {
+			deviceLabel["type"] = "temperature"
+			deviceMetric.With(deviceLabel).Set(payload.Object.Temperature.Float64)
+		}
 		if payload.Object.Decoded.Temperature.Valid {
 			deviceLabel["type"] = "airTemperature"
 			deviceMetric.With(deviceLabel).Set(payload.Object.Decoded.Temperature.Float64)
