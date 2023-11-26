@@ -387,8 +387,12 @@ func parseChirpstackWebhook(body []byte) (string, bool, error) {
 	// Milesight
 	case "24:e1:24":
 		if payload.Object.Temperature.Valid {
-			deviceLabel["type"] = "temperature"
+			deviceLabel["type"] = "temperature" // We use temperatuer when we don't know if its for liquid or air
 			deviceMetric.With(deviceLabel).Set(payload.Object.Temperature.Float64)
+		}
+		if payload.Object.Humidity.Valid {
+			deviceLabel["type"] = "airHumidity"
+			deviceMetric.With(deviceLabel).Set(payload.Object.Humidity.Float64)
 		}
 		if payload.Object.Decoded.Temperature.Valid {
 			deviceLabel["type"] = "airTemperature"
