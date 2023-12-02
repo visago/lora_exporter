@@ -29,6 +29,7 @@ type EnvConfig struct {
 	ApiKey     string `env:"APIKEY"`
 	ApiServer  string `env:"APISERVER"`
 	AuthKey    string `env:"AUTHKEY"`
+	MetricsGeo bool   `env:"METRICS_GEO" envDefault:false`
 }
 
 var config EnvConfig

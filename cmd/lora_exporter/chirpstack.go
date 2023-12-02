@@ -195,6 +195,8 @@ func getApiKey() string {
 // https://sensecap-docs.seeed.cc/measurement_list.html
 var senseCapMeasurementIdTypeMap = map[float64]string{
 	3000: "battery",
+	3940: "sosMode",
+	3941: "workMode",
 	4097: "airTemperature",
 	4098: "airHumidity",
 	4099: "lightIntensity",
@@ -213,7 +215,7 @@ var senseCapMeasurementIdTypeMap = map[float64]string{
 	4197: "longitude",
 	4198: "latitude",
 	4199: "lightIntensityPercent",
-	4200: "sos",
+	4200: "sosEvent",
 }
 
 func parseChirpstackWebhook(body []byte) (string, bool, error) {
@@ -300,10 +302,10 @@ func parseChirpstackWebhook(body []byte) (string, bool, error) {
 						deviceLabel["type"] = metricType
 						deviceMetric.With(deviceLabel).Set(castToFloat64(m.MeasurementValue))
 						if metricType == "longitude" {
-							metricGeoFlag = true
+							metricGeoFlag = config.MetricsGeo
 							lastLon = castToFloat64(m.MeasurementValue)
 						} else if metricType == "latitude" {
-							metricGeoFlag = true
+							metricGeoFlag = config.MetricsGeo
 							lastLat = castToFloat64(m.MeasurementValue)
 						}
 					} else {
