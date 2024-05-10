@@ -21,7 +21,7 @@ var (
 
 type EnvConfig struct {
 	Interval   int    `env:"INTERVAL,required" envDefault:"300"`
-	DumpFolder string `env:"DUMP_FOLDER,required" envDefault:"/tmp/lora"`
+	DumpFolder string `env:"DUMP_FOLDER" envDefault:""`
 	Listen     string `env:"LISTEN,required" envDefault:"0.0.0.0:5672"`
 	Forward    string `env:"FORWARD" envDefault:""`
 	Debug      bool   `env:"DEBUG" envDefault:false`

@@ -90,7 +90,7 @@ func webhookHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		filename := ""
 		devEui, needDump, err2 := parseChirpstackWebhook(body)
-		if config.Debug || needDump {
+		if (config.Debug || needDump) && (len(config.DumpFolder) > 0) {
 			filename = dumpFile(body)
 		}
 		if err2 != nil {
