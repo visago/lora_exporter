@@ -73,6 +73,10 @@ type WebHookDoc struct {
 		BatV                 null.Float `json:"BAT_V"`
 		Mod                  null.Float `json:"MOD"`
 		DoorOpenStatus       null.Float `json:"DOOR_OPEN_STATUS"`
+		// dragino-lwl02 (water sensor)
+		WaterLeakStatus       null.Float `json:"WATER_LEAK_STATUS"`
+		WaterLeakLastDuration null.Float `json:"LAST_WATER_LEAK_DURATION"`
+		WaterLeakCount        null.Float `json:"WATER_LEAK_TIMES"`
 		// rejee
 		Vol         null.Float `json:"vol"`
 		Temperature null.Float `json:"temperature"`
@@ -385,6 +389,18 @@ func parseChirpstackWebhook(body []byte) (string, bool, error) {
 		if payload.Object.DoorOpenStatus.Valid {
 			deviceLabel["type"] = "openStatus"
 			deviceMetric.With(deviceLabel).Set(payload.Object.DoorOpenStatus.Float64)
+		}
+		if payload.Object.WaterLeakStatus.Valid {
+			deviceLabel["type"] = "waterLeakStatus"
+			deviceMetric.With(deviceLabel).Set(payload.Object.WaterLeakStatus.Float64)
+		}
+		if payload.Object.WaterLeakLastDuration.Valid {
+			deviceLabel["type"] = "waterLeakLastDuration"
+			deviceMetric.With(deviceLabel).Set(payload.Object.WaterLeakLastDuration.Float64)
+		}
+		if payload.Object.WaterLeakCount.Valid {
+			deviceLabel["type"] = "waterLeakCount"
+			deviceMetric.With(deviceLabel).Set(payload.Object.WaterLeakCount.Float64)
 		}
 	// Milesight
 	case "24:e1:24":
